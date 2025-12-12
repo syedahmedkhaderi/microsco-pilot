@@ -1,0 +1,18 @@
+# MicroscoPilot Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+numpy>=1.20.0
+matplotlib>=3.3.0
+Pillow>=8.0.0
+
+# Claude Vision API
+anthropic>=0.34.0
+
+# DTMicroscope (if not already installed)
+# DTMicroscope should already be installed, but if not:
+# You may need to install it separately from the DTMicroscope directory
+
+# Optional: for better logging
+# colorlog>=6.0.0
+
