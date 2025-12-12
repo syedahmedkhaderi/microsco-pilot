@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from PIL import Image
 
 # Try to import DTMicroscope. If missing, we fall back to a simulation mode.
 HAS_DTMICROSCOPE = True
@@ -355,5 +356,52 @@ class MicroscopeController:
             logger.info("Warning: near sample edge; images may have edge artifacts.")
 
 
-# End of file
+if __name__ == "__main__":
+    import argparse
+    import os
+    from pathlib import Path
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    parser = argparse.ArgumentParser(description="Microscope demo runner")
+    parser.add_argument("--demo", action="store_true", help="Run a simple demo scan")
+    parser.add_argument("--steps", type=int, default=10, help="Number of demo steps")
+    parser.add_argument(
+        "--outdir",
+        type=str,
+        default="outputs/microscope_demo",
+        help="Directory to save demo images",
+    )
+    args = parser.parse_args()
+
+    if not args.demo:
+        print("Nothing to do. Use --demo to run a demo scan.")
+        raise SystemExit(0)
+
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    mc = MicroscopeController()
+    bounds = mc.get_bounds()
+
+    print("🚀 Starting microscope demo (simulation if DTMicroscope unavailable)…")
+    for i in range(1, args.steps + 1):
+        # Random position in bounds
+        x = float(np.random.uniform(bounds["x_min"], bounds["x_max"]))
+        y = float(np.random.uniform(bounds["y_min"], bounds["y_max"]))
+        mc.validate_and_warn(x, y)
+        actual_x, actual_y = mc.move_to(x, y)
+        img = mc.capture_image()
+        # Take first channel and scale to 0-255
+        arr = img[0]
+        arr = arr - arr.min()
+        arr = (arr / (arr.max() + 1e-8) * 255.0).astype(np.uint8)
+        img_path = outdir / f"step_{i:03d}_x{actual_x:.3f}_y{actual_y:.3f}.png"
+        Image.fromarray(arr).save(img_path)
+        print(f"📸 Saved {img_path}")
+
+    print("✅ Demo complete.")
 
