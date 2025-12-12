@@ -6,18 +6,25 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.microscope import MicroscopeController
-from src.vision import VisionAnalyzer
+from src.vision import VisionAnalyzer, MockVisionAnalyzer
 from src.agent import AutonomousAgent
+
+USE_REAL_API = False  # Toggle: set True for final demo with real API
 
 if __name__ == "__main__":
     # Initialize components
     microscope = MicroscopeController()
-    # Use environment key if present, otherwise fall back to provided key
-    api_key = os.getenv(
-        "ANTHROPIC_API_KEY",
-        "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",
-    )
-    vision = VisionAnalyzer(api_key=api_key)
+
+    if USE_REAL_API:
+        # Use environment key if present, otherwise fail fast
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY not set. Set it in .env or export it.")
+        vision = VisionAnalyzer(api_key=api_key)
+    else:
+        # Mock mode: no API needed, ideal for development
+        vision = MockVisionAnalyzer()
+
     agent = AutonomousAgent(microscope, vision)
 
     # Run exploration

@@ -20,6 +20,10 @@ import time
 import json
 from pathlib import Path
 from typing import Dict, Optional
+from PIL import Image
+import numpy as np
+import random
+import time
 
 # Try to load .env so the API key is available when running this file directly
 try:
@@ -585,6 +589,56 @@ def test_analyze_image():
         traceback.print_exc()
 
 
+class MockVisionAnalyzer:
+    """Simulated vision analyzer - NO API needed!"""
+
+    def analyze_image(self, image_path: str) -> Dict:
+        """Return fake but realistic analysis in the same schema used by VisionAnalyzer."""
+        # Simulate latency similar to an API call
+        time.sleep(0.5)
+
+        # Randomized feature sets and suggestions
+        feature_types = random.choice([
+            ['grain_boundary', 'smooth_region'],
+            ['particles', 'defect'],
+            ['rough_region', 'grain_boundary'],
+            ['smooth_region'],
+            ['particles', 'rough_region', 'defect']
+        ])
+        quality = random.uniform(5, 9)
+        interesting_score = random.uniform(4, 9)
+        suggestion = random.choice([
+            'zoom_in',
+            'move_left',
+            'move_right',
+            'move_up',
+            'move_down',
+            'adjust_focus'
+        ])
+
+        is_interesting = interesting_score >= 6.5
+        next_action = {
+            'action': suggestion,
+            'explanation': 'Mock suggestion based on simulated feature detection',
+        }
+
+        return {
+            'success': True,
+            'features': {
+                'types': feature_types
+            },
+            'image_quality': int(round(quality)),
+            'interestingness': {
+                'is_interesting': is_interesting,
+                'reason': f"mock score {interesting_score:.1f}/10",
+            },
+            'next_action': next_action,
+            'confidence': int(round(quality)),
+            'reasoning': f"Detected {len(feature_types)} features. Quality: {quality:.1f}/10. Suggesting: {suggestion}",
+            'raw_response': 'mock',
+        }
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -605,15 +659,82 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # If a specific image is provided, run analysis directly
+    def _generate_sample_afm_image(output_path: str, image_size: int = 256):
+        """Generate a synthetic AFM-like image and save to PNG."""
+        try:
+            rng = np.random.default_rng(1234)
+            base = rng.normal(loc=0.0, scale=0.15, size=(image_size, image_size))
+            cx = rng.integers(0, image_size)
+            cy = rng.integers(0, image_size)
+            sigma = rng.uniform(12, 28)
+            xx, yy = np.meshgrid(np.arange(image_size), np.arange(image_size))
+            bump = np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * sigma**2))
+            img_arr = base + bump * rng.uniform(0.6, 1.3)
+            # Normalize 0-255
+            img_arr = img_arr - img_arr.min()
+            img_arr = (img_arr / (img_arr.max() + 1e-8) * 255.0).astype(np.uint8)
+            Image.fromarray(img_arr).save(output_path)
+            return True
+        except Exception as e:
+            print(f"ERROR: Failed to generate sample image: {e}")
+            return False
+
+    def _local_analyze_image(image_path: str) -> Dict:
+        """Local heuristic analysis without calling external API."""
+        try:
+            img = Image.open(image_path).convert("L")
+            arr = np.array(img, dtype=np.float32) / 255.0
+            var = float(np.var(arr))
+            mean = float(np.mean(arr))
+            std = float(np.std(arr))
+            quality = int(np.clip(var * 10, 0, 10))
+            is_interesting = quality > 7
+            next_action = {
+                'action': 'zoom in' if is_interesting else 'continue scanning',
+                'explanation': 'Heuristic based on image variance',
+            }
+            return {
+                'success': True,
+                'features': {'heuristic': {'variance': var, 'mean': mean, 'std': std}},
+                'image_quality': quality,
+                'interestingness': {'is_interesting': is_interesting, 'reason': 'variance proxy'},
+                'next_action': next_action,
+                'confidence': quality,
+                'reasoning': 'Local analysis without external API',
+                'raw_response': None,
+            }
+        except Exception as e:
+            return {'success': False, 'error': f'Local analysis failed: {e}', 'raw_response': None}
+
+    # If a specific image is provided, ensure it exists and analyze
     if args.test_image:
+        img_path = Path(args.test_image)
+        img_path.parent.mkdir(parents=True, exist_ok=True)
+        if not img_path.exists():
+            ok = _generate_sample_afm_image(str(img_path))
+            if ok:
+                print(f"Generated sample AFM image at {img_path}")
+            else:
+                print("ERROR: Could not create sample image.")
+                raise SystemExit(1)
+
         api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            print("ERROR: ANTHROPIC_API_KEY not set. Set it in .env or export it.")
-            raise SystemExit(1)
-        analyzer = VisionAnalyzer(api_key=api_key)
-        result = analyzer.analyze_image(args.test_image)
-        print(json.dumps(result, indent=2))
+        if api_key:
+            try:
+                analyzer = VisionAnalyzer(api_key=api_key)
+                result = analyzer.analyze_image(str(img_path))
+                if not result.get('success'):
+                    print("API analysis failed, using local heuristic analysis.")
+                    result = _local_analyze_image(str(img_path))
+                print(json.dumps(result, indent=2))
+            except Exception as e:
+                print(f"API call error: {e}. Using local heuristic analysis.")
+                result = _local_analyze_image(str(img_path))
+                print(json.dumps(result, indent=2))
+        else:
+            print("No ANTHROPIC_API_KEY found. Running local heuristic analysis.")
+            result = _local_analyze_image(str(img_path))
+            print(json.dumps(result, indent=2))
     else:
         # Fallback to built-in guided test flow
         test_analyze_image()
