@@ -21,6 +21,15 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
+# Try to load .env so the API key is available when running this file directly
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    # It's okay if python-dotenv is not installed; we will rely on environment variables.
+    pass
+
 # Import Anthropic SDK for Claude API
 try:
     from anthropic import Anthropic
@@ -577,11 +586,34 @@ def test_analyze_image():
 
 
 if __name__ == "__main__":
+    import argparse
+
     # Set up basic logging for testing
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    
-    # Run the test
-    test_analyze_image()
+
+    parser = argparse.ArgumentParser(
+        description="Test the VisionAnalyzer on an image file."
+    )
+    parser.add_argument(
+        "--test",
+        dest="test_image",
+        type=str,
+        help="Path to an image file to analyze (e.g., data/sample_afm_image.png)",
+    )
+    args = parser.parse_args()
+
+    # If a specific image is provided, run analysis directly
+    if args.test_image:
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            print("ERROR: ANTHROPIC_API_KEY not set. Set it in .env or export it.")
+            raise SystemExit(1)
+        analyzer = VisionAnalyzer(api_key=api_key)
+        result = analyzer.analyze_image(args.test_image)
+        print(json.dumps(result, indent=2))
+    else:
+        # Fallback to built-in guided test flow
+        test_analyze_image()
