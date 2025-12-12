@@ -10,6 +10,22 @@ import os
 import sys
 from pathlib import Path
 
+# Try to load .env file if it exists (for API keys)
+# This allows you to store your API key in a .env file instead of exporting it
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Loads .env file if it exists
+except ImportError:
+    # python-dotenv not installed, try manual .env loading
+    env_file = Path(__file__).parent / ".env"
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+
 # Add src directory to path so we can import our modules
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 

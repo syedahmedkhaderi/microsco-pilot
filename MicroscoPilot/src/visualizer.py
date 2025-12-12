@@ -149,6 +149,9 @@ class Visualizer:
             
             logger.info(f"Image saved to {filepath}")
             
+            # Return the filepath so it can be used for analysis
+            return str(filepath)
+            
         except Exception as e:
             logger.error(f"Failed to plot image: {e}")
             raise

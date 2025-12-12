@@ -9,6 +9,9 @@ Pillow>=8.0.0
 # Claude Vision API
 anthropic>=0.34.0
 
+# Environment variable management (for .env file support)
+python-dotenv>=0.19.0
+
 # DTMicroscope (if not already installed)
 # DTMicroscope should already be installed, but if not:
 # You may need to install it separately from the DTMicroscope directory

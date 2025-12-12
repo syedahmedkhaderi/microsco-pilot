@@ -171,34 +171,50 @@ class MicroscoPilotAgent:
             logger.error(f"Failed to capture image: {e}")
             return False
         
-        # Save visualization of the image
-        self.visualizer.plot_image(image_data, current_pos)
+        # Save visualization of the image and get the filepath
+        image_filepath = self.visualizer.plot_image(image_data, current_pos)
         
-        # Analyze with Claude Vision API
+        # Analyze with Claude Vision API using the saved image file
+        analysis_result = None
+        analysis_text = "Analysis not performed"
+        suggestion_text = None
+        
         try:
-            # First, get general analysis
-            analysis = self.vision.identify_features(image_data)
-            logger.info(f"Claude analysis: {analysis[:100]}...")  # Log first 100 chars
+            # Use the new analyze_image method which takes a file path
+            analysis_result = self.vision.analyze_image(image_filepath)
             
-            # Get exploration suggestion
-            bounds = self.microscope.get_bounds()
-            suggestion = self.vision.get_exploration_suggestion(
-                image_data, current_pos, bounds
-            )
-            logger.info(f"Claude suggestion: {suggestion[:100]}...")
+            if analysis_result.get('success'):
+                # Extract information from structured response
+                analysis_text = analysis_result.get('raw_response', 'No analysis available')
+                
+                # Get next action suggestion
+                next_action = analysis_result.get('next_action', {})
+                suggestion_text = next_action.get('action', 'No suggestion')
+                
+                # Log the analysis results
+                quality = analysis_result.get('image_quality', 'N/A')
+                confidence = analysis_result.get('confidence', 'N/A')
+                interesting = analysis_result.get('interestingness', {}).get('is_interesting', 'N/A')
+                
+                logger.info(f"Claude analysis - Quality: {quality}/10, Confidence: {confidence}/10, "
+                          f"Interesting: {interesting}")
+                logger.info(f"Next action suggested: {suggestion_text}")
+            else:
+                error_msg = analysis_result.get('error', 'Unknown error')
+                logger.warning(f"Analysis failed: {error_msg}")
+                analysis_text = f"Analysis failed: {error_msg}"
             
         except Exception as e:
             logger.error(f"Failed to analyze image with Claude: {e}")
             # Continue anyway with basic analysis
-            analysis = "Analysis failed"
-            suggestion = None
+            analysis_text = f"Analysis error: {e}"
         
         # Store discovery
         self.memory.add_discovery(
             position=current_pos,
             image_data=image_data,
-            analysis=analysis,
-            feature_description=suggestion
+            analysis=analysis_text,
+            feature_description=suggestion_text
         )
         
         # Check if we should continue
@@ -207,8 +223,28 @@ class MicroscoPilotAgent:
             return False
         
         # Choose next position
+        # Try to get coordinates from Claude's structured response
+        claude_coords = None
+        claude_suggestion_text = None
+        if analysis_result and analysis_result.get('success'):
+            next_action = analysis_result.get('next_action', {})
+            claude_coords = next_action.get('coordinates')
+            if claude_coords:
+                claude_suggestion_text = f"Move to x={claude_coords[0]}, y={claude_coords[1]}"
+            else:
+                claude_suggestion_text = next_action.get('action', 'Continue exploring')
+        
         bounds = self.microscope.get_bounds()
-        next_pos = self.choose_next_position(current_pos, bounds, suggestion)
+        # If Claude provided coordinates, use them (but clamp to bounds)
+        if claude_coords:
+            x, y = claude_coords
+            # Clamp to valid bounds
+            x = max(bounds['x_min'], min(bounds['x_max'], x))
+            y = max(bounds['y_min'], min(bounds['y_max'], y))
+            next_pos = (x, y)
+            logger.info(f"Using Claude's coordinates (clamped): {next_pos}")
+        else:
+            next_pos = self.choose_next_position(current_pos, bounds, claude_suggestion_text)
         
         # Move to next position
         try:
