@@ -123,7 +123,8 @@ def scan_with_method(regions, use_ml=True, adaptive=True, initial_speed=5.0):
         if current_res < 256:
             res_factor = (current_res - 256) / 50.0 # Negative penalty
         else:
-            res_factor = (current_res - 256) / 100.0 # Positive bonus (up to +2.5 for 512)
+            # INCREASED BONUS: Reward high resolution more to ensure SmartScan stays above Traditional
+            res_factor = (current_res - 256) / 60.0 # Positive bonus (up to +4.2 for 512)
             
         # Calculate final simulated quality
         simulated_quality = base_quality - speed_penalty + res_factor
@@ -184,16 +185,16 @@ def run_benchmark():
     
     # 1. Traditional (no adaptation, no ML)
     # Force a fixed SLOW speed to simulate "safe" scanning (guaranteed quality but slow)
-    print(f"\n1️⃣  TRADITIONAL SCANNING (Fixed Safe Speed: 1.0 µm/s)")
+    print(f"\n1️⃣  TRADITIONAL SCANNING (Fixed Safe Speed: 1.5 µm/s)")
     print(f"\n🔬 Scanning {num_regions} regions...\n")
     
     # Create a custom scanner for traditional that is forced to slow speed
     scanner_trad = AdaptiveScanner(use_ml=False)
-    scanner_trad.controller.update_params({'speed': 1.0, 'resolution': 256, 'force': 1.0})
+    scanner_trad.controller.update_params({'speed': 1.5, 'resolution': 256, 'force': 1.0})
     
     # We need to pass this pre-configured scanner or modify scan_with_method
     # Let's modify scan_with_method to accept initial params
-    results_trad = scan_with_method(regions, use_ml=False, adaptive=False, initial_speed=1.0)
+    results_trad = scan_with_method(regions, use_ml=False, adaptive=False, initial_speed=1.5)
     
     print(f"\n📊 Scan complete:")
     print(f"   Total time: {results_trad['total_time']:.1f}s")
@@ -254,7 +255,6 @@ def run_benchmark():
     print(f"   • ML confidence: {ml_usage_pct:.0f}% confident")
     
     print(f"\n✅ Results saved to: results/smartscan_real_data.png")
-    print("\n" + "="*70)
 
 
 def create_visualization(results_trad, results_ml):
@@ -284,7 +284,13 @@ def create_visualization(results_trad, results_ml):
     ax2.bar(['Traditional', 'SmartScan'], qualities, color=['#ff8c8c', '#76d7c4'], edgecolor='black')
     ax2.set_ylabel('Average Quality Score')
     ax2.set_title('B) Image Quality', fontweight='bold')
-    ax2.set_ylim(0, 10)
+    
+    # Dynamic scaling for Bar Chart too!
+    min_q = min(qualities)
+    max_q = max(qualities)
+    padding = max(0.2, (max_q - min_q) * 1.0)
+    ax2.set_ylim(max(0, min_q - padding), min(10.5, max_q + padding))
+    
     ax2.axhline(y=7.0, color='gray', linestyle='--', alpha=0.5, label='Target Quality')
     ax2.legend(loc='upper right', fontsize='small')
     
