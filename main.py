@@ -349,11 +349,98 @@ def create_visualization(results_trad, results_ml):
     plt.suptitle('SmartScan: Real-Time Adaptive AFM Scanning', fontsize=16, fontweight='bold')
     plt.tight_layout()
     
-    # Save
+    # Save combined plot
     os.makedirs('results', exist_ok=True)
     plt.savefig('results/smartscan_real_data.png', dpi=300, bbox_inches='tight')
     print("✅ Visualization saved to results/smartscan_real_data.png")
     plt.close()
+
+    # --- Generate Individual Plots ---
+    print("📊 Generating individual plots for each section...")
+    
+    # A) Scan Speed
+    fig_a = plt.figure(figsize=(6, 5))
+    ax_a = fig_a.add_subplot(111)
+    bars_a = ax_a.bar(['Traditional', 'SmartScan'], times, color=['#ff8c8c', '#76d7c4'], edgecolor='black')
+    ax_a.set_ylabel('Total Scan Time (s)')
+    ax_a.set_title('A) Scan Speed Comparison', fontweight='bold')
+    if improvement > 0:
+        ax_a.text(1, times[1] + (max(times)*0.02), f"-{improvement:.0f}%", 
+                 ha='center', va='bottom', color='green', fontweight='bold', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('results/section_A_speed.png', dpi=300)
+    plt.close(fig_a)
+    
+    # B) Image Quality
+    fig_b = plt.figure(figsize=(6, 5))
+    ax_b = fig_b.add_subplot(111)
+    ax_b.bar(['Traditional', 'SmartScan'], qualities, color=['#ff8c8c', '#76d7c4'], edgecolor='black')
+    ax_b.set_ylabel('Average Quality Score')
+    ax_b.set_title('B) Image Quality Comparison', fontweight='bold')
+    # Dynamic scaling
+    min_q = min(qualities)
+    max_q = max(qualities)
+    padding = max(0.2, (max_q - min_q) * 1.0)
+    ax_b.set_ylim(max(0, min_q - padding), min(10.5, max_q + padding))
+    ax_b.axhline(y=7.0, color='gray', linestyle='--', alpha=0.5, label='Target Quality')
+    ax_b.legend(loc='upper right', fontsize='small')
+    plt.tight_layout()
+    plt.savefig('results/section_B_quality.png', dpi=300)
+    plt.close(fig_b)
+    
+    # C) Time per Region
+    fig_c = plt.figure(figsize=(8, 5))
+    ax_c = fig_c.add_subplot(111)
+    ax_c.plot(regions, [trad_time_per_region]*len(regions), 'o-', color='#ff8c8c', label='Traditional', linewidth=2)
+    ax_c.plot(regions, ml_time_per_region, 's-', color='#76d7c4', label='SmartScan', linewidth=2)
+    ax_c.set_xlabel('Region Number')
+    ax_c.set_ylabel('Scan Time (s)')
+    ax_c.set_title('C) Time per Region', fontweight='bold')
+    ax_c.grid(True, alpha=0.3)
+    ax_c.legend()
+    plt.tight_layout()
+    plt.savefig('results/section_C_time_per_region.png', dpi=300)
+    plt.close(fig_c)
+    
+    # D) Quality Throughout Scan
+    fig_d = plt.figure(figsize=(10, 5))
+    ax_d = fig_d.add_subplot(111)
+    ax_d.plot(regions, results_trad['quality_scores'], 'o-', color='#ff8c8c', label='Traditional', linewidth=2)
+    ax_d.plot(regions, results_ml['quality_scores'], 's-', color='#76d7c4', label='SmartScan', linewidth=2)
+    ax_d.axhline(y=7.0, color='gray', linestyle='--', alpha=0.5, label='Target Quality')
+    ax_d.set_xlabel('Region Number')
+    ax_d.set_ylabel('Quality Score')
+    ax_d.set_title('D) Quality Throughout Scan', fontweight='bold')
+    # Dynamic scaling
+    all_scores = results_trad['quality_scores'] + results_ml['quality_scores']
+    min_q = min(all_scores)
+    max_q = max(all_scores)
+    padding = max(0.1, (max_q - min_q) * 0.5)
+    ax_d.set_ylim(max(0, min_q - padding), min(10.5, max_q + padding))
+    ax_d.grid(True, alpha=0.3)
+    ax_d.legend()
+    plt.tight_layout()
+    plt.savefig('results/section_D_quality_trace.png', dpi=300)
+    plt.close(fig_d)
+    
+    # E) Adaptation
+    fig_e = plt.figure(figsize=(10, 5))
+    ax_e = fig_e.add_subplot(111)
+    ax_e.fill_between(regions, speeds, color='#76d7c4', alpha=0.3)
+    ax_e.plot(regions, speeds, 'o-', color='#48c9b0', linewidth=2)
+    ax_e.set_xlabel('Region Number')
+    ax_e.set_ylabel('Scan Speed (µm/s)')
+    ax_e.set_title('E) Real-Time Parameter Adaptation', fontweight='bold')
+    ax_e.grid(True, alpha=0.3)
+    if len(regions) > 0:
+        ax_e.annotate('Low quality\n→ Slowing down', xy=(0, speeds[0]), xytext=(-10, 10),
+                    textcoords='offset points', arrowprops=dict(arrowstyle='->', color='red'),
+                    color='red', fontsize=8)
+    plt.tight_layout()
+    plt.savefig('results/section_E_adaptation.png', dpi=300)
+    plt.close(fig_e)
+    
+    print("✅ Saved 5 individual section plots to results/")
 
 
 if __name__ == "__main__":
