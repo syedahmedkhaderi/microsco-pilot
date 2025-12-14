@@ -312,7 +312,13 @@ def create_visualization(results_trad, results_ml):
     ax4.set_xlabel('Region Number')
     ax4.set_ylabel('Quality Score')
     ax4.set_title('D) Quality Throughout Scan', fontweight='bold')
-    ax4.set_ylim(0, 10)
+    # Dynamic scaling to center the data
+    all_scores = results_trad['quality_scores'] + results_ml['quality_scores']
+    min_q = min(all_scores)
+    max_q = max(all_scores)
+    # Add 20% padding around the range
+    padding = max(0.1, (max_q - min_q) * 0.5)
+    ax4.set_ylim(max(0, min_q - padding), min(10.5, max_q + padding))
     ax4.grid(True, alpha=0.3)
     ax4.legend()
     
