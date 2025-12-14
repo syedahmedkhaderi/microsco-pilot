@@ -27,6 +27,7 @@ python main.py
 ```
 
 ## Results
+*Results based on benchmark of 80 real AFM regions from 16 different datasets.*
 
 <p align="center">
   <img src="./results/section_A_speed.png" width="45%" />
@@ -40,9 +41,6 @@ python main.py
 | Total scan time   | 5333.3 s    | 2320.5 s  | **56.5% faster** |
 | Average quality   | 9.62 / 10   | 9.90 / 10 | **+0.28 points** |
 | ML Usage          | N/A         | 100%      | Fully Confident |
-
-
-*Results based on benchmark of 80 real AFM regions from 16 different datasets.*
 
 The benchmark results demonstrate that SmartScan achieves a remarkable **56.5% reduction in total scan time** (from 5333s to 2320s) while simultaneously **improving average image quality** from 9.62 to 9.90 on a 10-point scale (Figure 1). This "Faster AND Better" result is achieved because SmartScan intelligently allocates resources: speeding up on simple regions and investing extra time/resolution only where it matters.
 
