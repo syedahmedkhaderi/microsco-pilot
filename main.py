@@ -8,8 +8,8 @@ from src.adaptive_scanner import AdaptiveScanner, compare_methods
 def create_comparison_plots(results_trad, results_adapt):
     '''Generate publication-quality comparison plots'''
 
-    fig = plt.figure(figsize=(16, 10))
-    gs = GridSpec(3, 3, figure=fig, hspace=0.3, wspace=0.3)
+    fig = plt.figure(figsize=(16, 12))
+    gs = GridSpec(3, 3, figure=fig, hspace=0.4, wspace=0.3)
 
     # Title
     fig.suptitle('SmartScan: Real-Time Adaptive AFM Scanning',
@@ -84,9 +84,10 @@ def create_comparison_plots(results_trad, results_adapt):
     for i, (q, s) in enumerate(zip(adapt_qualities, speeds)):
         if q < 6:
             ax5.annotate('Low quality\n→ Slowing down',
-                        xy=(i, s), xytext=(i, s+2),
-                        arrowprops=dict(arrowstyle='->', color='red'),
-                        fontsize=9, ha='center', color='red')
+                        xy=(i, s), xytext=(i+1.2, s+5),
+                        arrowprops=dict(arrowstyle='->', color='red', lw=1.5),
+                        fontsize=10, ha='center', color='red', fontweight='bold',
+                        bbox=dict(boxstyle='round,pad=0.5', facecolor='white', edgecolor='red', alpha=0.8))
             break
 
     plt.savefig('results/smartscan_benchmark.png', dpi=300, bbox_inches='tight')
