@@ -35,13 +35,13 @@ python main.py
   <em>Figure 1: Head-to-head comparison of Scan Speed (Left) and Image Quality (Right).</em>
 </p>
 
----
-
+<p align="center">
 | Metric            | Traditional | SmartScan | Improvement |
 |-------------------|-------------|-----------|-------------|
 | Total scan time   | 5333.3 s    | 2320.5 s  | **56.5% faster** |
 | Average quality   | 9.62 / 10   | 9.90 / 10 | **+0.28 points** |
 | ML Usage          | N/A         | 100%      | Fully Confident |
+</p>
 
 *Results based on benchmark of 80 real AFM regions from 16 different datasets.*
 
