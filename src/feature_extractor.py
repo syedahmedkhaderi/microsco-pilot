@@ -58,7 +58,7 @@ class FeatureExtractor:
         This is the main function you'll use. Give it an image, get back features.
         
         Args:
-            image: 2D numpy array of AFM scan data
+            image: 2D numpy array or PIL Image of AFM scan data
             
         Returns:
             Dictionary with feature names and values
@@ -68,6 +68,18 @@ class FeatureExtractor:
             >>> # Now you have all features as numbers
             >>> print(f"Sharpness: {features['sharpness']:.2f}")
         """
+        # Handle PIL Image (convert to numpy array)
+        if not isinstance(image, np.ndarray):
+            try:
+                from PIL import Image
+                if isinstance(image, Image.Image):
+                    image = np.array(image, dtype=np.float32)
+                    # If RGB, convert to grayscale
+                    if len(image.shape) == 3:
+                        image = np.mean(image, axis=2)
+            except:
+                pass
+        
         # Make sure image is 2D
         if len(image.shape) != 2:
             raise ValueError(f"Image must be 2D, got shape {image.shape}")

@@ -92,12 +92,18 @@ class AdaptiveAFMController:
         return Image.fromarray(img)
 
     def update_params(self, new_params):
-        '''Update scan parameters
-
+        '''Update scan parameters dynamically
+        
         Args:
-            new_params: dict with 'speed', 'force', 'resolution'
+            new_params: Dict with new parameter values
         '''
-        self.scan_params.update(new_params)
+        if 'speed' in new_params:
+            self.scan_params['speed'] = float(new_params['speed'])
+        if 'resolution' in new_params:
+            self.scan_params['resolution'] = int(new_params['resolution'])  # Ensure integer
+        if 'force' in new_params:
+            self.scan_params['force'] = float(new_params['force'])
+        
         print(f"⚙️  Updated: speed={self.scan_params['speed']:.1f} µm/s, "
               f"force={self.scan_params['force']:.1f} nN, "
               f"res={self.scan_params['resolution']}")

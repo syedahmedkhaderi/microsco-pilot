@@ -345,7 +345,7 @@ class MLPredictor:
             if model_file.exists():
                 try:
                     with open(model_file, 'rb') as f:
-                        self.models[param_name] = pickle.dump(f)
+                        self.models[param_name] = pickle.load(f)  # Fixed: load not dump
                     print(f"   📂 Loaded {param_name} model")
                     loaded_any = True
                 except Exception as e:

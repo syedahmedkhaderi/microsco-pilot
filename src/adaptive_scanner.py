@@ -1,4 +1,4 @@
-'''Adaptive scanning algorithm'''
+'''Adaptive scanning algorithm with ML integration'''
 import os
 import sys
 import time
@@ -12,18 +12,45 @@ if PROJECT_ROOT not in sys.path:
 from src.dtm_controller import AdaptiveAFMController
 from src.vision_evaluator import VisionEvaluator
 
+# Try to import ML predictor (optional - falls back to rules if not available)
+try:
+    from src.ml_predictor import MLPredictor
+    HAS_ML = True
+except ImportError:
+    HAS_ML = False
+
 
 class AdaptiveScanner:
-    '''Real-time adaptive AFM scanning'''
+    '''Real-time adaptive AFM scanning with ML + rule-based hybrid system'''
 
-    def __init__(self):
+    def __init__(self, use_ml=True):
+        """Initialize scanner
+        
+        Args:
+            use_ml: Whether to use ML predictions (True) or only rules (False)
+        """
         self.controller = AdaptiveAFMController()
         self.evaluator = VisionEvaluator()
+        
+        # ML predictor (hybrid approach)
+        self.use_ml = use_ml and HAS_ML
+        if self.use_ml:
+            try:
+                self.ml_predictor = MLPredictor()
+                print("🧠 ML predictor loaded")
+            except Exception as e:
+                print(f"⚠️  ML predictor failed to load: {e}")
+                self.use_ml = False
+                self.ml_predictor = None
+        else:
+            self.ml_predictor = None
+        
         self.results = {
             'images': [],
             'analyses': [],
             'time_log': [],
-            'param_log': []
+            'param_log': [],
+            'ml_used': []  # Track when ML was used
         }
 
     def scan_sample(self, num_regions=10, adaptive=True):
@@ -51,15 +78,35 @@ class AdaptiveScanner:
             start_time = time.time()
             image, scan_time = self.controller.scan_region(x, y, size=100)
 
-            # Analyze (provide current params so evaluator can suggest updates)
-            analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
+            # HYBRID APPROACH: Try ML first, fallback to rules
+            ml_used = False
+            
+            if adaptive and self.use_ml and self.ml_predictor is not None:
+                # Try ML prediction
+                ml_prediction = self.ml_predictor.predict(image)
+                
+                if ml_prediction['use_ml']:
+                    # ML is confident - use its predictions
+                    suggested = ml_prediction['parameters']
+                    ml_used = True
+                else:
+                    # ML not confident - fall back to rules
+                    analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
+                    suggested = analysis.get('suggested_params')
+            else:
+                # No ML or not adaptive - use rule-based approach
+                analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
+                suggested = analysis.get('suggested_params')
+            
+            # For consistency, always get analysis (needed for quality score)
+            if 'analysis' not in locals():
+                analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
 
-            # Harmonize fields expected by this algorithm
-            suggested = analysis.get('suggested_params')
+            # Determine if we should adjust parameters
             current = self.controller.scan_params
             should_adjust = False
             if adaptive and suggested is not None:
-                # Determine if suggested differs from current beyond small tolerance
+                # Check if suggested differs from current
                 tol_speed = 0.05 * max(1.0, current.get('speed', 1.0))
                 tol_force = 0.05 * max(0.5, current.get('force', 0.5))
                 tol_res = 1
@@ -70,17 +117,20 @@ class AdaptiveScanner:
                 ):
                     should_adjust = True
 
-            # Compose analysis fields for downstream logging
+            # Compose analysis fields
             analysis['should_adjust'] = should_adjust
             analysis['recommendations'] = suggested if suggested is not None else {}
+            analysis['ml_used'] = ml_used
 
             quality_scores.append(analysis['quality'])
             total_time += scan_time
 
+            # Print with ML indicator
+            ml_indicator = " 🧠" if ml_used else ""
             print(f"   Region {i+1}/{num_regions}: "
                   f"Quality={analysis['quality']:.1f}, "
                   f"Complexity={analysis['complexity']:.1f}, "
-                  f"Time={scan_time:.1f}s")
+                  f"Time={scan_time:.1f}s{ml_indicator}")
 
             # Adapt parameters if enabled
             if adaptive and analysis['should_adjust']:
@@ -91,6 +141,7 @@ class AdaptiveScanner:
             self.results['analyses'].append(analysis)
             self.results['time_log'].append(scan_time)
             self.results['param_log'].append(self.controller.scan_params.copy())
+            self.results['ml_used'].append(ml_used)
 
         # Summary
         avg_quality = float(np.mean(quality_scores)) if quality_scores else 0.0
@@ -98,6 +149,11 @@ class AdaptiveScanner:
         print(f"   Total time: {total_time:.1f}s")
         print(f"   Average quality: {avg_quality:.1f}/10")
         print(f"   Quality std: {float(np.std(quality_scores)):.1f}")
+        
+        # Show ML usage if enabled
+        if self.use_ml:
+            ml_count = sum(self.results['ml_used'])
+            print(f"   ML used: {ml_count}/{num_regions} times 🧠")
 
         self.results['total_time'] = total_time
         self.results['avg_quality'] = avg_quality
