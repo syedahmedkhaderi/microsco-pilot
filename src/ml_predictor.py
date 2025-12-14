@@ -198,36 +198,36 @@ class MLPredictor:
         # Reshape for prediction
         features = features.reshape(1, -1)
         
-        # Predict
-        try:
-            prediction = model.predict(features)[0]
+        # Suppress sklearn feature name warning
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='X does not have valid feature names')
             
-            # Clip to safe bounds
-            bounds = self.param_bounds[param_name]
-            prediction = np.clip(prediction, bounds[0], bounds[1])
-            
-            # Estimate confidence
-            # For now, use a simple heuristic:
-            # - Confidence based on how much training data we have
-            # - More data = more confidence
-            # - In future, can use model's leaf values variance
-            
-            n_training_samples = self.data_manager.get_statistics().get('total_samples', 0)
-            
-            if n_training_samples < 10:
-                confidence = 0.2
-            elif n_training_samples < 50:
-                confidence = 0.5
-            elif n_training_samples < 100:
-                confidence = 0.7
-            else:
-                confidence = 0.9
-            
-            return float(prediction), float(confidence)
-            
-        except Exception as e:
-            print(f"⚠️  Prediction error for {param_name}: {e}")
-            return self._fallback_value(param_name), 0.0
+            # Predict
+            try:
+                prediction = model.predict(features)[0]
+                
+                # Clip to safe bounds
+                bounds = self.param_bounds[param_name]
+                prediction = np.clip(prediction, bounds[0], bounds[1])
+                
+                # Estimate confidence
+                n_training_samples = self.data_manager.get_statistics().get('total_samples', 0)
+                
+                if n_training_samples < 10:
+                    confidence = 0.2
+                elif n_training_samples < 50:
+                    confidence = 0.5
+                elif n_training_samples < 100:
+                    confidence = 0.7
+                else:
+                    confidence = 0.9
+                
+                return float(prediction), float(confidence)
+                
+            except Exception as e:
+                print(f"⚠️  Prediction error for {param_name}: {e}")
+                return self._fallback_value(param_name), 0.0
     
     def _fallback_value(self, param_name: str) -> float:
         """Get safe fallback value for parameter"""
@@ -260,6 +260,10 @@ class MLPredictor:
         
         print("\n🧠 Training ML models...")
         
+        # Suppress sklearn feature name warnings
+        import warnings
+        warnings.filterwarnings('ignore', message='X does not have valid feature names')
+        
         # Train each parameter model
         for param_name in ['speed', 'resolution', 'force']:
             print(f"\n   Training {param_name} predictor...")
@@ -271,6 +275,10 @@ class MLPredictor:
                 print(f"   ⚠️  Not enough data ({len(X)} samples, need {min_samples})")
                 continue
             
+            # Convert to DataFrame with feature names (eliminates sklearn warnings)
+            import pandas as pd
+            X_df = pd.DataFrame(X, columns=self.feature_extractor.feature_names)
+            
             # Train LightGBM model
             model = lgb.LGBMRegressor(
                 n_estimators=100,        # 100 trees
@@ -281,7 +289,7 @@ class MLPredictor:
                 verbosity=-1             # Quiet
             )
             
-            model.fit(X, y)
+            model.fit(X_df, y)  # Train with DataFrame (has feature names)
             
             self.models[param_name] = model
             
