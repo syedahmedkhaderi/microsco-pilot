@@ -55,8 +55,8 @@ def load_afm_regions(afm_dir='data/AFM', num_files=None, regions_per_file=5):
             for region in regions:
                 all_regions.append((region, filename))
     
-    # Limit to 10 regions for rapid verification
-    all_regions = all_regions[:10]
+    # # Limit to 10 regions for rapid verification
+    # all_regions = all_regions[:10]
     
     print(f"✅ Loaded {len(all_regions)} regions from {len(h5_files)} files")
     return all_regions
@@ -89,32 +89,22 @@ def scan_with_method(regions, use_ml=True, adaptive=True, initial_speed=5.0):
         # Determine position for DTMicroscope (if used)
         x = (i % 5) * 200
         y = (i // 5) * 200
-        size = 100
+        size = 20000  # 20 µm scan size for realistic times (~2000s for traditional)
         
         # 1. Get Image & Scan Time
         # If DTMicroscope is available, we scan for real.
         # If not, we use the H5 region (passed in) but simulate the time.
-        if not scanner.controller.simulation_mode:
-            # Use DTMicroscope physics
-            image, scan_time = scanner.controller.scan_region(x, y, size)
+        # 1. Get Image & Scan Time
+        # The controller handles both Real (DTMicroscope) and Simulation modes now
+        # producing realistic physics-based quality in both cases.
+        image, scan_time = scanner.controller.scan_region(x, y, size, external_image=region)
             
-            # Get REAL quality from physics
-            real_quality = scanner.controller.get_quality_from_scan(
-                scanner.controller.last_scan_result
-            )
-        else:
-            # Use H5 data (fallback/benchmark mode)
-            image = region
-            
-            # Calculate time based on current speed
-            speed = scanner.controller.scan_params['speed']
-            if speed <= 0: speed = 0.1
-            scan_time = (size / speed) * 2  # Simple approximation
-            
-            real_quality = None
+        # Get physics-based quality (works for both Real and Simulated)
+        real_quality = scanner.controller.get_quality_from_scan(
+            scanner.controller.last_scan_result
+        )
 
         # 2. Analyze Image
-        # Pass real_quality if we have it
         analysis = scanner.evaluator.analyze_region(
             image, 
             current_params=scanner.controller.scan_params,
@@ -123,35 +113,11 @@ def scan_with_method(regions, use_ml=True, adaptive=True, initial_speed=5.0):
         
         # 3. Handle Quality Score
         if real_quality is not None:
-            # Use the real physics-based quality
+             # Use the physics-based quality
             final_quality = analysis['quality']
         else:
-            # Simulate realistic quality based on physics (Fallback)
-            # Quality = Base Quality - (Speed Penalty) - (Resolution Penalty)
-            
-            # Base quality from complexity
-            base_quality = 10.0 - (analysis['complexity'] * 5.0)
-            
-            # Speed penalty
-            current_speed = scanner.controller.scan_params['speed']
-            safe_speed = 15.0 - (analysis['complexity'] * 13.0)
-            if current_speed > safe_speed:
-                excess = current_speed - safe_speed
-                speed_penalty = (excess ** 1.5) * 0.5
-            else:
-                speed_penalty = 0.0
-            
-            # Resolution penalty/bonus
-            current_res = scanner.controller.scan_params['resolution']
-            if current_res < 256:
-                res_factor = (current_res - 256) / 50.0
-            else:
-                res_factor = (current_res - 256) / 60.0
-                
-            simulated_quality = base_quality - speed_penalty + res_factor
-            final_quality = np.clip(simulated_quality, 0, 10)
-            
-            # Update analysis with simulated quality
+            # Should not happen with new controller, but safety fallback
+            final_quality = 5.0
             analysis['quality'] = final_quality
 
         total_time += scan_time
