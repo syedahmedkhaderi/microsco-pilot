@@ -198,8 +198,156 @@ class AdaptiveAFMController:
         except Exception as e:
             print(f"⚠️  Error extracting quality: {e}")
             metrics['quality'] = 5.0
-            
         return metrics
+
+    def scan_ground_truth(self, ground_truth_image, params):
+        '''Scan a ground truth topography with specific parameters for ML training
+        
+        This method is used for physics-based training data generation.
+        It takes a pre-loaded topography (ground truth) and simulates scanning
+        it with specific parameters, then calculates quality metrics.
+        
+        Args:
+            ground_truth_image: numpy array of true topography (2D)
+            params: dict with 'speed', 'resolution', 'force'
+            
+        Returns:
+            dict with:
+                - 'scanned_image': PIL Image of simulated scan
+                - 'quality_metrics': dict with tracking_error, snr, quality
+                - 'scan_time': time taken in seconds
+        '''
+        # Update controller params temporarily
+        original_params = self.scan_params.copy()
+        self.scan_params.update(params)
+        
+        try:
+            # Ensure ground truth is numpy array
+            if isinstance(ground_truth_image, Image.Image):
+                ground_truth = np.array(ground_truth_image).astype(float)
+            else:
+                ground_truth = ground_truth_image.astype(float)
+            
+            # Resize to match requested resolution
+            target_res = params['resolution']
+            if ground_truth.shape[0] != target_res or ground_truth.shape[1] != target_res:
+                ground_truth_pil = Image.fromarray(ground_truth.astype(np.uint8))
+                ground_truth_pil = ground_truth_pil.resize((target_res, target_res), Image.LANCZOS)
+                ground_truth = np.array(ground_truth_pil).astype(float)
+            
+            # Calculate scan time
+            speed = params['speed']
+            size = 1000  # nm (default sample size)
+            pixels = target_res
+            if speed <= 0: speed = 0.1
+            line_time = size / speed
+            settling_time = 0.02
+            scan_time = (pixels * line_time * 2) + (pixels * settling_time)
+            
+            # Perform physics simulation if available
+            if not self.simulation_mode and self.microscope is not None:
+                try:
+                    # Normalize ground truth to reasonable height range (0-100 nm)
+                    gt_normalized = (ground_truth - ground_truth.min()) / (ground_truth.max() - ground_truth.min() + 1e-10)
+                    gt_scaled = gt_normalized * 100.0  # 0-100 nm height
+                    
+                    # Create sidpy Dataset
+                    dset = self.sidpy.Dataset.from_array(gt_scaled, name='Height')
+                    dset.data_type = self.sidpy.DataType.IMAGE
+                    dset.units = 'nm'
+                    dset.quantity = 'Height'
+                    
+                    # Add dimensions
+                    dim_x = np.linspace(0, size, gt_scaled.shape[0])
+                    dim_y = np.linspace(0, size, gt_scaled.shape[1])
+                    dset.set_dimension(0, self.sidpy.Dimension(dim_x, name='x', units='nm', quantity='x', dimension_type='SPATIAL'))
+                    dset.set_dimension(1, self.sidpy.Dimension(dim_y, name='y', units='nm', quantity='y', dimension_type='SPATIAL'))
+                    
+                    # Setup Microscope
+                    data_dict = {'Height': dset}
+                    self.microscope.data_dict = data_dict
+                    self.microscope.setup_microscope()
+                    
+                    # Configure Physics Effects (PID)
+                    drift_penalty = 0.1 / max(speed, 0.1)
+                    scan_rate_hz = 0.15 + drift_penalty
+                    
+                    modification = [{
+                        'effect': 'real_PID',
+                        'kwargs': {
+                            'scan_rate': scan_rate_hz,
+                            'sample_rate': 2000,
+                            'Kp': 0.9
+                        }
+                    }]
+                    
+                    # Scan with physics
+                    result_array = self.microscope.get_scan(channels=['Height'], modification=modification)
+                    scanned_data = result_array[0]
+                    
+                    # Normalize for image
+                    norm_data = (scanned_data - np.min(scanned_data)) / (np.max(scanned_data) - np.min(scanned_data) + 1e-10)
+                    scanned_image = Image.fromarray((norm_data * 255).astype(np.uint8))
+                    
+                    # Calculate quality metrics
+                    # Normalize both to same scale for comparison
+                    gt_norm = (gt_scaled - gt_scaled.mean()) / (gt_scaled.std() + 1e-10)
+                    scan_norm = (scanned_data - scanned_data.mean()) / (scanned_data.std() + 1e-10)
+                    
+                    # Tracking error
+                    error = np.abs(gt_norm - scan_norm)
+                    tracking_error = float(np.mean(error))
+                    
+                    # SNR
+                    signal_power = np.var(gt_norm)
+                    noise_power = np.var(gt_norm - scan_norm)
+                    snr = float(signal_power / (noise_power + 1e-10))
+                    
+                    # Quality score (0-10)
+                    quality = float(10.0 * np.exp(-tracking_error))
+                    quality = np.clip(quality, 0, 10)
+                    
+                    quality_metrics = {
+                        'quality': quality,
+                        'tracking_error': tracking_error,
+                        'snr': snr,
+                        'source': 'DTMicroscope'
+                    }
+                    
+                except Exception as e:
+                    print(f"⚠️  DTMicroscope scan failed: {e}. Using fallback.")
+                    # Fallback to synthetic
+                    scanned_image = Image.fromarray(ground_truth.astype(np.uint8))
+                    quality_metrics = {
+                        'quality': 5.0,
+                        'tracking_error': 0.5,
+                        'snr': 10.0,
+                        'source': 'synthetic_fallback'
+                    }
+            else:
+                # Simulation mode - add speed-dependent noise
+                noise_level = speed * 2
+                scanned = ground_truth + np.random.randn(*ground_truth.shape) * noise_level
+                scanned = np.clip(scanned, 0, 255)
+                scanned_image = Image.fromarray(scanned.astype(np.uint8))
+                
+                # Synthetic quality
+                quality_metrics = {
+                    'quality': 5.0,
+                    'tracking_error': 0.5,
+                    'snr': 10.0,
+                    'source': 'synthetic'
+                }
+            
+            return {
+                'scanned_image': scanned_image,
+                'quality_metrics': quality_metrics,
+                'scan_time': scan_time
+            }
+            
+        finally:
+            # Restore original params
+            self.scan_params = original_params
 
     def _generate_region(self, x, y, size):
         '''Generate realistic synthetic AFM image'''
