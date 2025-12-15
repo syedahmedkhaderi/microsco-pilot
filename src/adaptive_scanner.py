@@ -77,6 +77,11 @@ class AdaptiveScanner:
             # Scan region
             start_time = time.time()
             image, scan_time = self.controller.scan_region(x, y, size=100)
+            
+            # Get real quality from physics (if available)
+            real_quality = None
+            if not self.controller.simulation_mode:
+                real_quality = self.controller.get_quality_from_scan(self.controller.last_scan_result)
 
             # HYBRID APPROACH: Try ML first, fallback to rules
             ml_used = False
@@ -91,16 +96,38 @@ class AdaptiveScanner:
                     ml_used = True
                 else:
                     # ML not confident - fall back to rules
-                    analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
+                    analysis = self.evaluator.analyze_region(
+                        image, 
+                        current_params=self.controller.scan_params,
+                        real_quality=real_quality
+                    )
                     suggested = analysis.get('suggested_params')
             else:
                 # No ML or not adaptive - use rule-based approach
-                analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
+                analysis = self.evaluator.analyze_region(
+                    image, 
+                    current_params=self.controller.scan_params,
+                    real_quality=real_quality
+                )
                 suggested = analysis.get('suggested_params')
             
             # For consistency, always get analysis (needed for quality score)
             if 'analysis' not in locals():
-                analysis = self.evaluator.analyze_region(image, current_params=self.controller.scan_params)
+                analysis = self.evaluator.analyze_region(
+                    image, 
+                    current_params=self.controller.scan_params,
+                    real_quality=real_quality
+                )
+                
+            # ONLINE LEARNING: Update ML model with real experience
+            if self.use_ml and self.ml_predictor is not None:
+                # We feed the current image, the parameters used, and the RESULTING quality
+                # This allows the ML to learn "Action -> Reward" mapping
+                self.ml_predictor.update_online(
+                    image,
+                    self.controller.scan_params,
+                    analysis['quality']
+                )
 
             # Determine if we should adjust parameters
             current = self.controller.scan_params

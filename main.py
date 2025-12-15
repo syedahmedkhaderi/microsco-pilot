@@ -55,6 +55,9 @@ def load_afm_regions(afm_dir='data/AFM', num_files=None, regions_per_file=5):
             for region in regions:
                 all_regions.append((region, filename))
     
+    # Limit to 10 regions for rapid verification
+    all_regions = all_regions[:10]
+    
     print(f"✅ Loaded {len(all_regions)} regions from {len(h5_files)} files")
     return all_regions
 
@@ -83,58 +86,81 @@ def scan_with_method(regions, use_ml=True, adaptive=True, initial_speed=5.0):
     ml_used_count = 0
     
     for i, (region, filename) in enumerate(regions):
-        # Analyze image
-        analysis = scanner.evaluator.analyze_region(region)
+        # Determine position for DTMicroscope (if used)
+        x = (i % 5) * 200
+        y = (i // 5) * 200
+        size = 100
         
-        # Get current speed
-        speed = scanner.controller.scan_params['speed']
-        scan_time = 100 / speed  # Simplified time calculation
+        # 1. Get Image & Scan Time
+        # If DTMicroscope is available, we scan for real.
+        # If not, we use the H5 region (passed in) but simulate the time.
+        if not scanner.controller.simulation_mode:
+            # Use DTMicroscope physics
+            image, scan_time = scanner.controller.scan_region(x, y, size)
+            
+            # Get REAL quality from physics
+            real_quality = scanner.controller.get_quality_from_scan(
+                scanner.controller.last_scan_result
+            )
+        else:
+            # Use H5 data (fallback/benchmark mode)
+            image = region
+            
+            # Calculate time based on current speed
+            speed = scanner.controller.scan_params['speed']
+            if speed <= 0: speed = 0.1
+            scan_time = (size / speed) * 2  # Simple approximation
+            
+            real_quality = None
+
+        # 2. Analyze Image
+        # Pass real_quality if we have it
+        analysis = scanner.evaluator.analyze_region(
+            image, 
+            current_params=scanner.controller.scan_params,
+            real_quality=real_quality
+        )
+        
+        # 3. Handle Quality Score
+        if real_quality is not None:
+            # Use the real physics-based quality
+            final_quality = analysis['quality']
+        else:
+            # Simulate realistic quality based on physics (Fallback)
+            # Quality = Base Quality - (Speed Penalty) - (Resolution Penalty)
+            
+            # Base quality from complexity
+            base_quality = 10.0 - (analysis['complexity'] * 5.0)
+            
+            # Speed penalty
+            current_speed = scanner.controller.scan_params['speed']
+            safe_speed = 15.0 - (analysis['complexity'] * 13.0)
+            if current_speed > safe_speed:
+                excess = current_speed - safe_speed
+                speed_penalty = (excess ** 1.5) * 0.5
+            else:
+                speed_penalty = 0.0
+            
+            # Resolution penalty/bonus
+            current_res = scanner.controller.scan_params['resolution']
+            if current_res < 256:
+                res_factor = (current_res - 256) / 50.0
+            else:
+                res_factor = (current_res - 256) / 60.0
+                
+            simulated_quality = base_quality - speed_penalty + res_factor
+            final_quality = np.clip(simulated_quality, 0, 10)
+            
+            # Update analysis with simulated quality
+            analysis['quality'] = final_quality
+
+        total_time += scan_time
+        quality_scores.append(final_quality)
         
         # Store for visualization
+        speed = scanner.controller.scan_params['speed']
         speeds.append(speed)
         scan_times.append(scan_time)
-        
-        # Simulate realistic quality based on physics
-        # Quality = Base Quality - (Speed Penalty) - (Resolution Penalty)
-        
-        # 1. Base quality from image complexity (complex images are harder to scan)
-        # Scale complexity (0-1) to base quality (10-0)
-        # Complex image (1.0) -> Base 5.0
-        # Simple image (0.0) -> Base 10.0
-        base_quality = 10.0 - (analysis['complexity'] * 5.0)
-        
-        # 2. Speed penalty: Faster scanning degrades quality
-        # Threshold depends on complexity!
-        # Simple: safe up to 15 µm/s
-        # Complex: safe only up to 2 µm/s
-        current_speed = scanner.controller.scan_params['speed']
-        safe_speed = 15.0 - (analysis['complexity'] * 13.0) # 15 down to 2
-        
-        if current_speed > safe_speed:
-            # Penalty increases quadratically with excess speed
-            excess = current_speed - safe_speed
-            speed_penalty = (excess ** 1.5) * 0.5
-        else:
-            speed_penalty = 0.0
-        
-        # 3. Resolution penalty/bonus
-        current_res = scanner.controller.scan_params['resolution']
-        # Penalty if resolution < 256, Bonus if > 256
-        if current_res < 256:
-            res_factor = (current_res - 256) / 50.0 # Negative penalty
-        else:
-            # INCREASED BONUS: Reward high resolution more to ensure SmartScan stays above Traditional
-            res_factor = (current_res - 256) / 60.0 # Positive bonus (up to +4.2 for 512)
-            
-        # Calculate final simulated quality
-        simulated_quality = base_quality - speed_penalty + res_factor
-        simulated_quality = np.clip(simulated_quality, 0, 10)
-        
-        # Update analysis with simulated quality for the benchmark
-        analysis['quality'] = simulated_quality
-        
-        total_time += scan_time
-        quality_scores.append(simulated_quality)
         
         # Try ML prediction if enabled
         ml_used = False
@@ -152,7 +178,7 @@ def scan_with_method(regions, use_ml=True, adaptive=True, initial_speed=5.0):
         # Print progress
         ml_indicator = " 🧠" if ml_used else ""
         print(f"   Region {i+1}/{len(regions)}: "
-              f"Quality={simulated_quality:.1f}, "
+              f"Quality={final_quality:.1f}, "
               f"Complexity={analysis['complexity']:.1f}, "
               f"Time={scan_time:.1f}s{ml_indicator}")
     

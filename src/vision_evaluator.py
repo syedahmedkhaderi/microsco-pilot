@@ -11,12 +11,13 @@ except Exception:
 class VisionEvaluator:
     '''Fast computer vision-based image quality assessment'''
 
-    def analyze_region(self, image, current_params=None):
+    def analyze_region(self, image, current_params=None, real_quality=None):
         '''Analyze AFM image and recommend parameters
 
         Args:
             image: PIL Image or numpy array
             current_params: optional dict of current scan params
+            real_quality: optional dict of real quality metrics from DTMicroscope
 
         Returns:
             analysis: dict with quality, complexity, recommendations, suggested_params
@@ -34,7 +35,13 @@ class VisionEvaluator:
         contrast = float(img.std())
 
         complexity = float(grad_mag.std())
-        quality = float((lap_var + contrast) / (noise_level + 1e-6))
+        
+        if real_quality is not None:
+            # Use REAL quality from physics simulation
+            quality = float(real_quality['quality'])
+        else:
+            # Fall back to CV-based estimate
+            quality = float((lap_var + contrast) / (noise_level + 1e-6))
 
         recommendations = []
 
