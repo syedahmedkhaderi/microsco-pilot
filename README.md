@@ -6,14 +6,14 @@
 Atomic force microscopy (AFM) scans are notoriously slow. A typical high-quality scan can take hours, and operators often set conservative "safe" parameters (slow speed) to avoid poor tracking or thermal drift errors. This "one-size-fits-all" approach wastes massive amounts of time on flat regions and fails to adapt to complex features, resulting in suboptimal data throughput.
 
 ## Introduction
-SmartScan reimagines AFM scanning as a dynamic, **Physics-Informed Machine Learning** problem. Instead of using static parameters, SmartScan uses an ML model trained on **real AFM data** and **physics simulations** to continuously predict the optimal scan parameters (speed, resolution, force) for every region of the sample.
+SmartScan reimagines AFM scanning as a dynamic **Adaptive Control** problem. Instead of using static parameters, SmartScan uses an ML model trained on **real AFM data** augmented with **physics-based simulations** to continuously predict the optimal scan parameters (speed, resolution, force) for every region of the sample.
 
-Unlike traditional methods that rely on fixed rules or simple computer vision, SmartScan's ML engine has learned the complex physical relationship between **scan speed** and **image quality**, specifically understanding the trade-off between **thermal drift** (which ruins slow scans) and **tracking error** (which ruins fast scans). It identifies the "sweet spot" in real-time.
+Unlike traditional methods that rely on fixed rules or simple computer vision, SmartScan's ML engine has learned the complex trade-offs modeled in our simulation between **scan speed** and **image quality**, specifically balancing **thermal drift** (which minimizes at high speeds) against **tracking error** (which minimizes at low speeds). It identifies the "sweet spot" in real-time.
 
 Key innovations:
-*   **Physics-Informed ML:** Trained on 160+ real AFM regions with simulated physics artifacts (Drift, Noise, PID lag).
+*   **Simulation-Trained ML:** Trained on 160+ real AFM regions using a "Digital Twin" simulation that models drift, noise, and PID dynamics.
 *   **Real-Time Adaptation:** Dynamically adjusts speed from 1 µm/s to 20 µm/s based on local surface complexity.
-*   **Drift-Aware Control:** Penalizes overly slow scans to minimize thermal drift accumulation, a common issue in long experiments.
+*   **Drift-Aware Optimization:** Optimizes for an explicit cost function that penalizes thermal drift accumulation, addressing a key real-world limitation.
 
 ## Code
 ```bash
@@ -62,7 +62,7 @@ As shown in **Figure A** (left), SmartScan dramatically reduces the total experi
 
 **Figure D** traces the image quality across the entire experiment.
 *   **Traditional (Orange Line):** Suffers from a constant "Drift Penalty" (the gap between 8.4 and 9.0) because it moves too slowly, allowing environmental noise to accumulate.
-*   **SmartScan (Green Line):** Consistently maintains higher quality (closer to 9.0). The green line stays *above* the orange line for almost every region, validating our Physics-Informed ML approach.
+*   **SmartScan (Green Line):** Consistently maintains higher quality (closer to 9.0). The green line stays *above* the orange line for almost every region, validating our Optimization approach.
 
 ---
 
@@ -77,11 +77,11 @@ As shown in **Figure A** (left), SmartScan dramatically reduces the total experi
 *   This visualizes the ML model actively balancing the trade-off between **Thermal Drift** (penalizes slow speeds) and **Tracking Error** (penalizes fast speeds) to find the optimal path for every single region.
 
 ## Methods
-**Physics-Informed Training:**
-We trained a LightGBM regressor on a dataset of **160 real AFM regions**. For each region, we simulated thousands of scans using the **DTMicroscope** physics engine, injecting realistic **thermal drift noise** and **PID tracking errors** to create a ground-truth map of "Parameters → Quality". The model learned to predict the parameters that maximize quality (minimizing both drift and tracking error).
+**Simulation-Based Training:**
+We trained a LightGBM regressor on a dataset of **160 real AFM regions**. For each region, we simulated thousands of scans using the **DTMicroscope** engine. To create a ground-truth optimization surface, we augmented the DTMicroscope output with a valid **Thermal Drift Model** (`Noise ~ Time`) and physics-based PID tracking errors. The model learned to reverse-engineer this cost landscape to predict optimal parameters.
 
-**Drift Simulation:**
-A key component of our success was correctly modeling **Thermal Drift**. In real experiments, slow scans allow more time for environmental noise to accumulate. We integrated a drift penalty into the DTMicroscope simulation path (`drift_noise ~ 1/speed`), creating a realistic physical incentive for the AI to scan efficiently.
+**Drift Model Implementation:**
+A key component of our success was correctly modeling **Thermal Drift**. In real experiments, slow scans allow more time for environmental noise to accumulate. We explicitly modeled this by injecting noise proportional to scan time, creating a physical incentive for the AI to scan efficiently.
 
 **Hardware Simulation:**
 The system uses the **DTMicroscope** library to simulate the physical interaction of the AFM tip with the sample surface, ensuring that the tracking errors (blurring at high speeds) are physically accurate.
