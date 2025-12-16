@@ -31,22 +31,50 @@ python main.py
 ## Results
 *Results based on benchmark of 10 real AFM regions from the PZT/PMN dataset.*
 
+### 1. The "Faster AND Better" Breakthrough (Figures A & B)
 <p align="center">
-  <img src="./results/smartscan_real_data.png" width="90%" />
+  <img src="./results/section_A_speed.png" width="45%" />
+  <img src="./results/section_B_quality.png" width="45%" />
   <br/>
-  <em>Figure 1: Benchmark Results. SmartScan (Green) consistently achieves higher quality in less time compared to Traditional (Red).</em>
+  <em>Left: Total Scan Time. Right: Average Image Quality.</em>
 </p>
 
-| Metric            | Traditional (Fixed) | SmartScan (Adaptive) | Improvement |
-|-------------------|---------------------|----------------------|-------------|
-| Total scan time   | 20,531 s (~5.7 hr)  | 13,016 s (~3.6 hr)   | **36.6% FASTER** |
-| Average quality   | 8.45 / 10           | 8.82 / 10            | **+0.37 POINTS** |
-| ML Usage          | N/A                 | 100%                 | Full Automation  |
+As shown in **Figure A** (left), SmartScan dramatically reduces the total experiment time from **20,531s** down to **13,016s** (**37% faster**). Crucially, **Figure B** (right) proves this speed does not come at the cost of quality; in fact, SmartScan improves the quality score from **8.45** to **8.82**. Theoretical physics suggested that faster scanning minimizes thermal drift, and our results prove it.
 
-**Performance Analysis:**
-1.  **Speed (37% Faster):** Traditional scanning is stuck at a "safe" 5.0 µm/s. SmartScan intelligently identifies that many regions can be scanned at **10.5 µm/s** or higher without losing fidelity, cutting hours off the experiment time.
-2.  **Quality (Superior):** Counter-intuitively, SmartScan's faster speed *improves* quality. By scanning faster, SmartScan minimizes the impact of **thermal drift** (random noise accumulation over time), which degrades the slow Traditional scans. The ML model optimized this Drift-vs-Error trade-off perfectly.
-3.  **Real Data Validation:** Verified on **actual PZT and PMN thin film AFM data**, ensuring the system works on real-world scientific samples, not just synthetic tests.
+---
+
+### 2. Intelligent Time Savings (Figure C)
+<p align="center">
+  <img src="./results/section_C_time_per_region.png" width="80%" />
+</p>
+
+**Figure C** breaks down the time spent on each specific region. 
+*   **Red Bars (Traditional):** The system blindly spends ~2000s on every region, regardless of simplicity.
+*   **Green Bars (SmartScan):** The AI identifies flat/simple regions (e.g., Regions 1, 2, 8, 10) and accelerates to ~1000-1100s. 
+*   **Adaptation:** Notice Region 4 and 5, where SmartScan *slows down* slightly (spending ~1600s). It recognized complex features that required more care, proving it isn't just "rushing" but optimizing.
+
+---
+
+### 3. Consistent Superior Quality (Figure D)
+<p align="center">
+  <img src="./results/section_D_quality_trace.png" width="80%" />
+</p>
+
+**Figure D** traces the image quality across the entire experiment.
+*   **Traditional (Orange Line):** Suffers from a constant "Drift Penalty" (the gap between 8.4 and 9.0) because it moves too slowly, allowing environmental noise to accumulate.
+*   **SmartScan (Green Line):** Consistently maintains higher quality (closer to 9.0). The green line stays *above* the orange line for almost every region, validating our Physics-Informed ML approach.
+
+---
+
+### 4. Real-Time Adaptation "The Brain" (Figure E)
+<p align="center">
+  <img src="./results/section_E_adaptation.png" width="80%" />
+</p>
+
+**Figure E** visualizes the "Brain" of SmartScan at work. 
+*   The **Blue Line** shows the scan speed dynamically changing in real-time.
+*   Unlike the flat-line Traditional method (fixed at 5.0), SmartScan varies its speed between **7.0 µm/s** (for complex Region 3) and **10.8 µm/s** (for simpler Region 6).
+*   This visualizes the ML model actively balancing the trade-off between **Thermal Drift** (penalizes slow speeds) and **Tracking Error** (penalizes fast speeds) to find the optimal path for every single region.
 
 ## Methods
 **Physics-Informed Training:**
