@@ -6,7 +6,7 @@
 Atomic force microscopy (AFM) scans are notoriously slow. A typical high-quality scan can take hours, and operators often set conservative "safe" parameters (slow speed) to avoid poor tracking or thermal drift errors. This "one-size-fits-all" approach wastes massive amounts of time on flat regions and fails to adapt to complex features, resulting in suboptimal data throughput.
 
 ## Introduction
-SmartScan demonstrates **model-free optimization** of AFM scanning parameters in a physics-based simulation environment. The ML agent learns to balance competing constraints (thermal drift vs tracking error) by training on simulated scans of real AFM topography data.
+SmartScan reimagines AFM scanning as a dynamic **model-free optimization** problem. Instead of using static parameters, SmartScan uses an ML agent trained in a **physics-based simulation environment** (using real AFM data) to continuously learn and predict the optimal scan parameters (speed, resolution, force) for every region of the sample.
 
 Unlike traditional methods that rely on fixed rules or simple computer vision, SmartScan's ML engine has learned the complex trade-offs modeled in our simulation between **scan speed** and **image quality**, specifically balancing **thermal drift** (which minimizes at high speeds) against **tracking error** (which minimizes at low speeds). It identifies the "sweet spot" in real-time.
 
