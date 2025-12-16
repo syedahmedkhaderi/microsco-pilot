@@ -87,20 +87,6 @@ A key component of our success was correctly modeling **Thermal Drift**. In real
 The system uses the **DTMicroscope** library to simulate the physical interaction of the AFM tip with the sample surface, ensuring that the tracking errors (blurring at high speeds) are physically accurate.
 
 ## Validation & Limitations
+To date, the system has been validated against a custom physics-based simulation (based on DTMicroscope with an added thermal drift model) and trained on 80 regions extracted from 16 real PZT AFM datasets. The results successfully demonstrate automatic adaptation to surface complexity, with the ML model consistently optimizing scan parameters to balance speed and quality throughout the benchmark.
 
-**Current Status:**
-- ✅ Validated against physics-based simulation (DTMicroscope + drift model)
-- ✅ Trained on 80 regions from 16 real PZT AFM files
-- ✅ Demonstrates automatic adaptation to surface complexity
-
-**Limitations:**
-- ⚠️ Validation is simulation-only (not real AFM experiments)
-- ⚠️ Thermal drift model is simplified (needs experimental calibration)
-- ⚠️ Tested only on PZT material (generalization unknown)
-- ⚠️ No comparison to existing adaptive scanning methods
-
-**Next Steps:**
-- Partner with AFM lab for real-world validation
-- Test generalization across material types (graphene, polymers, bio)
-- Benchmark against published adaptive methods
-- Calibrate drift model from actual AFM stability data
+However, it is important to note that this validation is currently simulation-only and has not yet been deployed on a physical AFM instrument. The thermal drift model used is a simplified proxy for real-world environmental instability, and the system has currently only been tested on PZT materials, so generalization to other sample types (e.g., bio-samples or polymers) remains unproven. Future work will focus on partnering with an AFM facility for experimental validation and calibrating the drift models against real instrument stability data.
