@@ -86,5 +86,21 @@ A key component of our success was correctly modeling **Thermal Drift**. In real
 **Hardware Simulation:**
 The system uses the **DTMicroscope** library to simulate the physical interaction of the AFM tip with the sample surface, ensuring that the tracking errors (blurring at high speeds) are physically accurate.
 
-## Conclusions
-SmartScan proves that **Machine Learning** can outperform human operators by solving the complex multi-variable optimization problem of AFM scanning. By balancing thermal drift against tracking error, it achieved a **37% speedup** and **superior image quality** on real data. This capability transforms the microscope from a passive tool into an intelligent agent, capable of autonomous, high-throughput materials characterization.
+## Validation & Limitations
+
+**Current Status:**
+- ✅ Validated against physics-based simulation (DTMicroscope + drift model)
+- ✅ Trained on 80 regions from 16 real PZT AFM files
+- ✅ Demonstrates automatic adaptation to surface complexity
+
+**Limitations:**
+- ⚠️ Validation is simulation-only (not real AFM experiments)
+- ⚠️ Thermal drift model is simplified (needs experimental calibration)
+- ⚠️ Tested only on PZT material (generalization unknown)
+- ⚠️ No comparison to existing adaptive scanning methods
+
+**Next Steps:**
+- Partner with AFM lab for real-world validation
+- Test generalization across material types (graphene, polymers, bio)
+- Benchmark against published adaptive methods
+- Calibrate drift model from actual AFM stability data
