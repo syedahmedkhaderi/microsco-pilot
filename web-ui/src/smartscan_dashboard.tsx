@@ -14,14 +14,9 @@ import {
     RefreshCcw,
     Rocket,
     Sparkles,
-    Square,
     TimerReset,
     Zap,
 } from "lucide-react";
-
-// SmartScan AFM Dashboard
-// Self-contained React component built for hackathon demo
-// Uses Tailwind utility classes and lucide-react icons only.
 
 const benchmarkData = {
     traditional: {
@@ -57,12 +52,12 @@ type SpeedMultiplier = 1 | 2 | 5 | 10;
 
 type ScanPoint = {
     region: number;
-    progress: number; // 0-100
-    speed: number; // um/s
-    quality: number; // 0-10
-    time: number; // seconds used for region
-    confidence: number; // 0-1
-    complexity: number; // 0-1
+    progress: number;
+    speed: number;
+    quality: number;
+    time: number;
+    confidence: number;
+    complexity: number;
     thinking: boolean;
 };
 
@@ -121,19 +116,48 @@ const ProgressBar = ({ value, color, label }: { value: number; color: string; la
     </div>
 );
 
-const RadarBar = ({ label, value, max = 1, color }: { label: string; value: number; max?: number; color: string }) => (
-    <div>
-        <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
-            <span>{label}</span>
-            <span className="font-mono text-teal-200">{(value * 100).toFixed(0)}%</span>
-        </div>
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-            <div className={`h-full ${color} rounded-full transition-all duration-300`} style={{ width: `${(value / max) * 100}%` }} />
-        </div>
+const SectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="bg-[#18181a] border border-white/5 rounded-xl p-4 shadow-xl shadow-black/30">
+        <div className="text-sm text-gray-300 font-semibold mb-3">{title}</div>
+        {children}
     </div>
 );
 
-// Generates believable adaptation data for demo, respecting bounds
+const Sparkline = ({
+    data,
+    color = "#76d7c4",
+    height = 64,
+    width = 300,
+    dashedAt,
+}: {
+    data: number[];
+    color?: string;
+    height?: number;
+    width?: number;
+    dashedAt?: number;
+}) => {
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const norm = (v: number) => (max === min ? height / 2 : height - ((v - min) / (max - min)) * height);
+    const points = data.map((v, i) => `${(i / (data.length - 1)) * width},${norm(v)}`).join(" ");
+    return (
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+            {dashedAt !== undefined && (
+                <line
+                    x1={0}
+                    y1={norm(dashedAt)}
+                    x2={width}
+                    y2={norm(dashedAt)}
+                    stroke="#9ca3af"
+                    strokeDasharray="6 4"
+                    opacity={0.5}
+                />
+            )}
+            <polyline points={points} fill="none" stroke={color} strokeWidth={2} />
+        </svg>
+    );
+};
+
 const generateScanPoint = (region: number, mode: Mode): ScanPoint => {
     const traditionalSpeed = 5;
     const complexity = Math.max(0.05, Math.min(0.95, 0.3 + 0.4 * Math.sin(region) + Math.random() * 0.25));
@@ -170,13 +194,6 @@ const generateScanPoint = (region: number, mode: Mode): ScanPoint => {
     };
 };
 
-const formatSeconds = (s: number) => {
-    const mins = Math.floor(s / 60);
-    const secs = Math.round(s % 60);
-    if (mins <= 0) return `${secs}s`;
-    return `${mins}m ${secs}s`;
-};
-
 const SmartScanDashboard = () => {
     const [mode, setMode] = useState<Mode>("comparison");
     const [isScanning, setIsScanning] = useState(false);
@@ -184,12 +201,10 @@ const SmartScanDashboard = () => {
     const [regionIdx, setRegionIdx] = useState(0);
     const [traditionalData, setTraditionalData] = useState<ScanPoint[]>([]);
     const [smartData, setSmartData] = useState<ScanPoint[]>([]);
-    const [mlFeatures, setMlFeatures] = useState({ sharpness: 0.62, complexity: 0.48, edge: 0.55, drift: 0.38, noise: 0.44 });
     const [expandedSpecs, setExpandedSpecs] = useState(false);
 
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Reset helper
     const reset = () => {
         if (timerRef.current) clearInterval(timerRef.current);
         setIsScanning(false);
@@ -198,13 +213,12 @@ const SmartScanDashboard = () => {
         setSmartData([]);
     };
 
-    // Simulated scanning loop
     useEffect(() => {
         if (!isScanning) return;
 
         timerRef.current = setInterval(() => {
             setTraditionalData((prev) => {
-                if (mode === "adaptive") return prev; // only SmartScan
+                if (mode === "adaptive") return prev;
                 if (prev.length >= 10) return prev;
                 const next = generateScanPoint(prev.length, "traditional");
                 return [...prev, { ...next, progress: 100 }];
@@ -213,18 +227,9 @@ const SmartScanDashboard = () => {
             setSmartData((prev) => {
                 if (prev.length >= 10) return prev;
                 const next = generateScanPoint(prev.length, "adaptive");
-                // simulate progress increments
                 const progressStep = 28 / simulationSpeed + Math.random() * 5;
                 const updated = { ...next, progress: Math.min(100, progressStep + (prev.at(-1)?.progress ?? 0)) };
                 return [...prev, updated];
-            });
-
-            setMlFeatures({
-                sharpness: 0.55 + Math.random() * 0.3,
-                complexity: 0.4 + Math.random() * 0.4,
-                edge: 0.45 + Math.random() * 0.35,
-                drift: 0.25 + Math.random() * 0.35,
-                noise: 0.3 + Math.random() * 0.25,
             });
 
             setRegionIdx((r) => Math.min(9, r + 1));
@@ -242,27 +247,14 @@ const SmartScanDashboard = () => {
         return Math.max(0, ((trad - smart) / trad) * 100);
     }, [smartData]);
 
-    const mlConfidenceLive = smartData.at(-1)?.confidence ?? 0.88;
-
-    const currentReason = useMemo(() => {
-        const point = smartData.at(-1);
-        if (!point) return "Awaiting scan";
-        if (point.complexity > 0.65) return "Complex features detected → slowing";
-        if (point.complexity < 0.35) return "Smooth region → accelerating";
-        return "Balanced region → nominal speed";
-    }, [smartData]);
-
     const traditionalProgress = (traditionalData.length / 10) * 100;
     const adaptiveProgress = (smartData.length / 10) * 100;
 
     const qualityGap = (benchmarkData.smartscan.avgQuality - benchmarkData.traditional.avgQuality).toFixed(2);
 
-    const isComplete = smartData.length >= 10 || (mode === "traditional" && traditionalData.length >= 10);
-
     return (
         <div className="min-h-screen bg-[#111112] text-white font-['Inter','Roboto','system-ui'] p-6">
             <div className="max-w-7xl mx-auto space-y-6">
-                {/* Header */}
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div className="space-y-1">
                         <div className="flex items-center gap-3">
@@ -271,11 +263,11 @@ const SmartScanDashboard = () => {
                             </div>
                             <div>
                                 <div className="text-sm uppercase tracking-[0.18em] text-teal-200/90">SmartScan AFM</div>
-                                <h1 className="text-3xl font-semibold text-white">Adaptive Microscopy Control Dashboard</h1>
+                                <h1 className="text-3xl font-semibold text-white">Real-Time Adaptive Scanning</h1>
                             </div>
                         </div>
                         <p className="text-sm text-gray-400 max-w-2xl">
-                            ML-driven adaptive scanning with physics-informed optimization. Live demo for Microscopy Hackathon 2025.
+                            ML-driven adaptive scanning with physics-informed optimization.
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -288,7 +280,6 @@ const SmartScanDashboard = () => {
                     </div>
                 </div>
 
-                {/* Control + Live */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                     <div className="col-span-1 space-y-4">
                         <div className="bg-[#18181a] rounded-xl border border-white/5 p-4 shadow-xl shadow-black/30">
@@ -386,101 +377,91 @@ const SmartScanDashboard = () => {
                                 </button>
                             </div>
                             <div className={`space-y-2 text-xs text-gray-300 transition-all ${expandedSpecs ? "max-h-[400px]" : "max-h-[72px] overflow-hidden"}`}>
-                                <div className="flex items-center gap-2"><Brain className="w-3 h-3 text-teal-300" /> ML Model: LightGBM Regressor (speed, res, force)</div>
-                                <div className="flex items-center gap-2"><Layers className="w-3 h-3 text-teal-300" /> Training: 160 regions • 16 AFM files • 10 features</div>
-                                <div className="flex items-center gap-2"><Gauge className="w-3 h-3 text-teal-300" /> Physics: DTMicroscope + thermal drift penalty</div>
-                                <div className="flex items-center gap-2"><Bolt className="w-3 h-3 text-teal-300" /> Optimization: speed 1-20 µm/s, adaptive force & resolution</div>
-                                <div className="flex items-center gap-2"><Rocket className="w-3 h-3 text-emerald-300" /> Online updates supported (demo mode: simulated)</div>
-                                <div className="flex items-center gap-2"><AlertTriangle className="w-3 h-3 text-orange-300" /> Safety: drift-aware, bounds-checked commands</div>
+                                <div className="flex items-center gap-2"><Brain className="w-3 h-3 text-teal-300" /> LightGBM Regressor</div>
+                                <div className="flex items-center gap-2"><Layers className="w-3 h-3 text-teal-300" /> 160 regions • 16 AFM files</div>
+                                <div className="flex items-center gap-2"><Gauge className="w-3 h-3 text-teal-300" /> DTMicroscope physics</div>
+                                <div className="flex items-center gap-2"><Bolt className="w-3 h-3 text-teal-300" /> Speed 1–20 µm/s bounds</div>
+                                <div className="flex items-center gap-2"><AlertTriangle className="w-3 h-3 text-orange-300" /> Safety checks</div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Main visualization */}
                     <div className="col-span-1 lg:col-span-3 space-y-4">
-                        <div className="bg-gradient-to-br from-[#1c1c1f] to-[#141416] border border-white/5 rounded-2xl p-5 shadow-2xl shadow-black/40">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2 text-gray-300 text-sm font-semibold">
-                                    <Activity className="w-4 h-4 text-teal-300" /> Live Scanning Simulation
-                                </div>
-                                <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                                    <span className="flex items-center gap-1"><Circle className="w-2 h-2 text-orange-400" /> Traditional</span>
-                                    <span className="flex items-center gap-1"><Circle className="w-2 h-2 text-teal-300" /> SmartScan</span>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                {/* Surface view */}
-                                <div className="col-span-2 bg-[#0f0f11] border border-white/5 rounded-xl p-4 relative overflow-hidden h-64">
-                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(72,201,176,0.08),transparent_40%)]" />
-                                    <div className="flex items-center justify-between text-xs text-gray-300 mb-2">
-                                        <span>Sample Surface</span>
-                                        <span className="text-gray-400">Region #{regionIdx + 1}</span>
-                                    </div>
-                                    <div className="relative h-full max-h-48 rounded-lg overflow-hidden bg-gradient-to-br from-[#1d1f22] via-[#111214] to-[#0a0b0d] border border-white/5">
-                                        <div className="absolute inset-0 opacity-70" style={{
-                                            backgroundImage:
-                                                "linear-gradient(45deg, rgba(72,201,176,0.25) 0%, rgba(72,201,176,0.05) 40%, rgba(255,140,140,0.15) 60%, rgba(255,215,0,0.14) 80%)," +
-                                                "radial-gradient(circle at 20% 30%, rgba(255,140,140,0.35), transparent 32%)," +
-                                                "radial-gradient(circle at 80% 60%, rgba(72,201,176,0.32), transparent 28%)",
-                                        }} />
-                                        <div className="absolute inset-0 grid grid-cols-12 grid-rows-8 opacity-20">
-                                            {Array.from({ length: 96 }).map((_, i) => (
-                                                <div key={i} className="border border-white/5" />
-                                            ))}
+                        <SectionCard title="A) Scan Speed">
+                            <div className="space-y-3">
+                                <div className="text-[11px] text-gray-400">Total Scan Time</div>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1">
+                                        <div className="text-[11px] text-gray-400 mb-1">Traditional</div>
+                                        <div className="h-3 bg-white/10 rounded">
+                                            <div className="h-3 rounded bg-[#ff8c8c]" style={{ width: "100%" }} />
                                         </div>
-                                        {/* Scan path overlay */}
-                                        <div className="absolute inset-4">
-                                            {Array.from({ length: 8 }).map((_, row) => (
-                                                <div key={row} className="absolute left-0 right-0 h-px bg-white/10" style={{ top: `${(row / 7) * 100}%` }} />
-                                            ))}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-[11px] text-gray-400 mb-1">SmartScan</div>
+                                        <div className="h-3 bg-white/10 rounded">
                                             <div
-                                                className="absolute left-0 right-0 h-1 bg-gradient-to-r from-orange-400/70 via-emerald-300/80 to-teal-300/90 rounded-full shadow-[0_0_15px_rgba(72,201,176,0.6)]"
-                                                style={{ top: `${(regionIdx / 9) * 90 + 5}%`, width: `${30 + (smartData.at(-1)?.progress ?? 20) * 0.6}%` }}
-                                            />
-                                            <div
-                                                className="absolute w-4 h-4 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)] animate-pulse"
+                                                className="h-3 rounded"
                                                 style={{
-                                                    top: `${(regionIdx / 9) * 90 + 5}%`,
-                                                    left: `${30 + (smartData.at(-1)?.progress ?? 0) * 0.6}%`,
+                                                    width: `${Math.max(20, 100 - timeSaved)}%`,
+                                                    backgroundColor: "#76d7c4",
                                                 }}
                                             />
                                         </div>
                                     </div>
-                                </div>
-
-                                {/* ML brain */}
-                                <div className="col-span-1 bg-[#0f0f11] border border-white/5 rounded-xl p-4 space-y-4 flex flex-col justify-between">
-                                    <div>
-                                        <div className="flex items-center justify-between text-xs text-gray-300 mb-2">
-                                            <span className="font-semibold flex items-center gap-2"><Brain className="w-4 h-4 text-teal-300" /> ML Brain</span>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${smartData.at(-1)?.thinking ? "bg-orange-500/20 text-orange-200 animate-pulse" : "bg-emerald-500/10 text-emerald-200"}`}>
-                                                {smartData.at(-1)?.thinking ? "Thinking" : "Ready"}
-                                            </span>
-                                        </div>
-                                        <div className="text-xs text-teal-200 mb-3 font-medium border-l-2 border-teal-500/50 pl-2">{currentReason}</div>
-                                        <div className="space-y-2">
-                                            <RadarBar label="Complexity" value={mlFeatures.complexity} color="bg-orange-400" />
-                                            <RadarBar label="Drift risk" value={mlFeatures.drift} color="bg-amber-300" />
-                                            <RadarBar label="Noise level" value={mlFeatures.noise} color="bg-cyan-300" />
-                                        </div>
-                                    </div>
-
-                                    <div className="p-3 rounded-lg bg-teal-500/5 border border-teal-500/20 text-xs space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-400">Speed</span>
-                                            <span className="font-mono text-emerald-300 text-sm">{(smartData.at(-1)?.speed ?? 12.5).toFixed(1)} µm/s</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-400">Confidence</span>
-                                            <span className="font-mono text-teal-300">{(mlConfidenceLive * 100).toFixed(0)}%</span>
-                                        </div>
-                                    </div>
+                                    <div className="text-teal-200 text-xs font-semibold">{timeSaved.toFixed(0)}% faster</div>
                                 </div>
                             </div>
-                        </div>
+                        </SectionCard>
 
-                        {/* Core Metrics only */}
+                        <SectionCard title="B) Image Quality">
+                            <div className="grid grid-cols-2 gap-4">
+                                <MetricCard label="Traditional" value={benchmarkData.traditional.avgQuality.toFixed(2)} accent="orange" />
+                                <MetricCard label="SmartScan" value={benchmarkData.smartscan.avgQuality.toFixed(2)} accent="teal" />
+                            </div>
+                            <div className="text-[11px] text-gray-400 mt-3">Higher is better</div>
+                        </SectionCard>
+
+                        <SectionCard title="C) Time per Region">
+                            <div className="flex items-center gap-4">
+                                <Sparkline
+                                    data={(smartData.length ? smartData : Array.from({ length: 10 }, (_, i) => generateScanPoint(i, "adaptive"))).map((p) => p.time)}
+                                    color="#76d7c4"
+                                    width={500}
+                                    height={80}
+                                />
+                            </div>
+                            <div className="text-[11px] text-gray-400 mt-2">SmartScan maintains ~steady times with spikes on complex regions</div>
+                        </SectionCard>
+
+                        <SectionCard title="D) Quality Throughout Scan">
+                            <div className="flex items-center gap-4">
+                                <Sparkline
+                                    data={(traditionalData.length ? traditionalData : Array.from({ length: 10 }, (_, i) => generateScanPoint(i, "traditional"))).map((p) => p.quality)}
+                                    color="#ff8c8c"
+                                    width={500}
+                                    height={80}
+                                />
+                                <Sparkline
+                                    data={(smartData.length ? smartData : Array.from({ length: 10 }, (_, i) => generateScanPoint(i, "adaptive"))).map((p) => p.quality)}
+                                    color="#76d7c4"
+                                    width={500}
+                                    height={80}
+                                    dashedAt={benchmarkData.smartscan.avgQuality}
+                                />
+                            </div>
+                        </SectionCard>
+
+                        <SectionCard title="E) Real-Time Parameter Adaptation">
+                            <Sparkline
+                                data={(smartData.length ? smartData : Array.from({ length: 10 }, (_, i) => generateScanPoint(i, "adaptive"))).map((p) => p.speed)}
+                                color="#76d7c4"
+                                width={500}
+                                height={80}
+                            />
+                            <div className="text-[11px] text-gray-400 mt-2">Speed adapts to region complexity</div>
+                        </SectionCard>
+
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             <MetricCard label="Time Saved" value={`${timeSaved.toFixed(0)}%`} sub="vs Traditional" accent="teal" icon={<TimerReset className="w-4 h-4" />} />
                             <MetricCard label="Quality Score" value={`${benchmarkData.smartscan.avgQuality.toFixed(2)}`} sub={`vs ${benchmarkData.traditional.avgQuality.toFixed(2)} baseline`} accent="green" icon={<Activity className="w-4 h-4" />} />
@@ -488,7 +469,6 @@ const SmartScanDashboard = () => {
                             <MetricCard label="Total Speed" value="37%" sub="Improvement" accent="orange" icon={<Rocket className="w-4 h-4" />} />
                         </div>
 
-                        {/* Results summary (Simplified) */}
                         <div className="bg-[#18181a] border border-white/5 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 bg-teal-500/10 rounded-full flex items-center justify-center border border-teal-500/20">
@@ -505,11 +485,9 @@ const SmartScanDashboard = () => {
                                 <span className="flex items-center gap-2"><Circle className="w-1.5 h-1.5 text-emerald-400" /> LightGBM</span>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="text-center text-[10px] text-gray-600 pt-8 pb-4">
                     SmartScan v1.0 • Microscopy Hackathon 2025
                 </div>
